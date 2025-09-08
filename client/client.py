@@ -1,71 +1,109 @@
 import cv2
-import socket
+import requests
 import subprocess
 import threading
-import struct
-import random
+import queue
 
-SERVER_IP = "127.0.0.1"
-SERVER_PORT = 5000
-WIDTH, HEIGHT = 640, 480
-
-# assign a unique id for this client (in real world: could be UUID)
-CLIENT_ID = random.randint(1, 1_000_000)
-
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.connect((SERVER_IP, SERVER_PORT))
+SERVER_URL = "http://127.0.0.1:5000/upload"
 
 
-def camera_worker(cam_index):
-    cap = cv2.VideoCapture(cam_index)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
+def writer_thread(ffmpeg, frame_queue):
+    """Write raw frames into ffmpeg stdin."""
+    while True:
+        try:
+            frame = frame_queue.get(timeout=1)
+            ffmpeg.stdin.write(frame.tobytes())
+        except queue.Empty:
+            continue
+        except BrokenPipeError:
+            break
+
+
+def reader_thread(ffmpeg, cam_id):
+    """Read encoded chunks from ffmpeg stdout and send to server."""
+    while True:
+        data = ffmpeg.stdout.read(4096)
+        if not data:
+            continue
+        try:
+            requests.post(
+                SERVER_URL,
+                data=data,
+                headers={
+                    "Content-Type": "application/octet-stream",
+                    "Camera-ID": str(cam_id)
+                },
+                timeout=1
+            )
+        except requests.exceptions.RequestException:
+            pass  # drop chunk if server unreachable
+
+
+def camera_thread(cam_id):
+    cap = cv2.VideoCapture(cam_id)
+    if not cap.isOpened():
+        print(f"Camera {cam_id} not available")
+        return
+
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 640)
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 480)
+    fps = int(cap.get(cv2.CAP_PROP_FPS) or 30)
 
     ffmpeg_cmd = [
         "ffmpeg",
         "-y",
         "-f", "rawvideo",
         "-pix_fmt", "bgr24",
-        "-s", f"{WIDTH}x{HEIGHT}",
-        "-r", "30",
+        "-s", f"{width}x{height}",
+        "-r", str(fps),
         "-i", "-",
-        "-an",
         "-c:v", "libx264",
         "-preset", "ultrafast",
-        "-tune", "zerolatency",
-        "-f", "mpegts", "-"
+        "-f", "h264",
+        "-"
     ]
-    ffmpeg = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    ffmpeg = subprocess.Popen(
+        ffmpeg_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+    )
 
-    def feed_frames():
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            try:
-                ffmpeg.stdin.write(frame.tobytes())
-            except BrokenPipeError:
-                break
+    frame_queue = queue.Queue()
 
-    def send_stream():
-        while True:
-            data = ffmpeg.stdout.read1(4096)
-            if not data:
-                break
-            # prepend: client_id(4) + cam_index(1) + length(4)
-            header = struct.pack("!IBI", CLIENT_ID, cam_index, len(data))
-            sock.sendall(header + data)
+    # Start writer + reader threads
+    threading.Thread(target=writer_thread, args=(ffmpeg, frame_queue), daemon=True).start()
+    threading.Thread(target=reader_thread, args=(ffmpeg, cam_id), daemon=True).start()
 
-    threading.Thread(target=feed_frames, daemon=True).start()
-    threading.Thread(target=send_stream, daemon=True).start()
+    print(f"Started camera {cam_id}")
 
-
-# Example: 2 cameras per client
-for cam_index in [0, 1]:
-    threading.Thread(target=camera_worker, args=(cam_index,), daemon=True).start()
-
-try:
     while True:
-        pass
-except KeyboardInterrupt:
-    sock.close()
+        ret, frame = cap.read()
+        if not ret:
+            break
+        try:
+            frame_queue.put_nowait(frame)
+        except queue.Full:
+            pass  # drop if queue is overloaded
+
+    cap.release()
+    ffmpeg.stdin.close()
+    ffmpeg.wait()
+
+
+# Detect available cameras
+def detect_cameras(max_test=5):
+    cams = []
+    for i in range(max_test):
+        cap = cv2.VideoCapture(i)
+        if cap.isOpened():
+            cams.append(i)
+        cap.release()
+    return cams
+
+
+if __name__ == "__main__":
+    cameras = detect_cameras()
+    print("Detected cameras:", cameras)
+    for cam in cameras:
+        threading.Thread(target=camera_thread, args=(cam,), daemon=True).start()
+
+    # Keep main thread alive
+    threading.Event().wait()
