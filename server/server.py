@@ -4,6 +4,7 @@ import threading
 import cv2
 import numpy as np
 import queue
+import os
 
 app = Flask(__name__)
 
@@ -21,44 +22,31 @@ def writer_thread(ffmpeg, frame_queue):
         except BrokenPipeError:
             break
 
-
-def reader_thread(ffmpeg, camera_id, width=640, height=480):
-    """Continuously read decoded frames from ffmpeg stdout and display."""
-    frame_size = width * height * 3
-    while True:
-        raw_frame = ffmpeg.stdout.read(frame_size)
-        if not raw_frame:
-            continue
-        frame = np.frombuffer(raw_frame, np.uint8).reshape((height, width, 3))
-        cv2.imshow(f"Camera {camera_id}", frame)
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
-    cv2.destroyWindow(f"Camera {camera_id}")
-    ffmpeg.terminate()
-
-
-def start_decoder(camera_id, width=640, height=480):
+def start_decoder(camera_id):
     """Start a new ffmpeg decoder process and threads for a camera."""
+    out_dir = f"./chunks/{camera_id}"
+    os.makedirs(out_dir, exist_ok=True)
     ffmpeg_cmd = [
         "ffmpeg",
-        "-i", "pipe:0",
-        "-f", "rawvideo",
-        "-pix_fmt", "bgr24",
-        "-s", f"{width}x{height}",
-        "-"
+        "-i", "pipe:0",                
+        "-c:v", "libx264",
+        "-c:a", "aac",
+        "-f", "dash",
+        "-use_template", "1", 
+        "-use_timeline", "1", 
+        "-seg_duration", "2",
+        "-frag_duration", "1", 
+        "-window_size", "6",  
+        "-extra_window_size", "2",
+        "-remove_at_exit", "1",
+        f"./chunks/{camera_id}/manifest.mpd"
     ]
     ffmpeg = subprocess.Popen(
         ffmpeg_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
     )
-
     q = queue.Queue()
     camera_streams[camera_id] = q
-
-    # One thread feeds encoded chunks
     threading.Thread(target=writer_thread, args=(ffmpeg, q), daemon=True).start()
-
-    # Another thread reads decoded frames
-    threading.Thread(target=reader_thread, args=(ffmpeg, camera_id, width, height), daemon=True).start()
 
 
 @app.route("/upload", methods=["POST"])
@@ -75,6 +63,23 @@ def upload():
     camera_streams[cam_id].put(chunk)
     return "OK", 200
 
-
+def reset_chunks_dir(base_dir="./chunks"):
+    if not os.path.exists(base_dir):
+        os.makedirs(base_dir)
+        return
+    for name in os.listdir(base_dir):
+        path = os.path.join(base_dir, name)
+        if os.path.isfile(path):
+            os.remove(path)
+        elif os.path.isdir(path):
+            # recursively remove subfolders using only os
+            for root, dirs, files in os.walk(path, topdown=False):
+                for f in files:
+                    os.remove(os.path.join(root, f))
+                for d in dirs:
+                    os.rmdir(os.path.join(root, d))
+            os.rmdir(path)
 if __name__ == "__main__":
+    import os
+    reset_chunks_dir()
     app.run(host="0.0.0.0", port=5000, threaded=True)
