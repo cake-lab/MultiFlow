@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, send_from_directory, render_template
 import subprocess
 import threading
 import cv2
@@ -6,7 +6,8 @@ import numpy as np
 import queue
 import os
 
-app = Flask(__name__)
+template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../client/web"))
+app = Flask(__name__, template_folder=template_dir)
 
 camera_streams = {}
 
@@ -62,7 +63,12 @@ def upload():
 
     camera_streams[cam_id].put(chunk)
     return "OK", 200
-
+@app.route("/")
+def live_frontend():
+    return render_template("index.html")
+@app.route("/dash/<camera_id>/<path:filename>")
+def dash_files(camera_id, filename):
+    return send_from_directory(f"./chunks/{camera_id}", filename)
 def reset_chunks_dir(base_dir="./chunks"):
     if not os.path.exists(base_dir):
         os.makedirs(base_dir)
