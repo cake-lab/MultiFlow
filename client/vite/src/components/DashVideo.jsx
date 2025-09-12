@@ -1,5 +1,4 @@
 import {useState, useEffect, useRef} from "react"
-import dashjs from "dashjs"
 
 function DashVideo({player, url}) {
     const video = useRef(null);

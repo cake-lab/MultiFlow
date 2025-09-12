@@ -1,41 +1,14 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Live Camera Stream</title>
-    <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
-    <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
-        video { border: 2px solid #ccc; margin-top: 20px; width: 80%; max-width: 720px; }
-    </style>
-</head>
-<body>
-    <h2>Live Camera Feed</h2>
-
-    <select id="cameraSelect">
-        <option value="0">Camera 1</option>
-        <option value="1">Camera 2</option>
-    </select>
-
-    <video id="videoPlayer" controls autoplay></video>
-
-    <script>
-        const player = dashjs.MediaPlayer().create();
-        const videoElement = document.getElementById("videoPlayer");
-        const cameraSelect = document.getElementById("cameraSelect");
-
-        function loadCamera(cameraId) {
-            const manifestUrl = `/dash/${cameraId}/manifest.mpd`;
-            player.initialize(videoElement, manifestUrl, true);
-        }
-
-        // Load first camera on page load
-        loadCamera(cameraSelect.value);
-
-        // Switch camera dynamically
-        cameraSelect.addEventListener("change", () => {
-            loadCamera(cameraSelect.value);
-        });
-    </script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite + React</title>
+    <script type="module" crossorigin src="/assets/index-UimSBI65.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-D8b4DHJx.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
 </html>
