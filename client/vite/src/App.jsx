@@ -1,7 +1,5 @@
 import { useMemo } from 'react'
 import { MediaPlayer } from "dashjs"
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
 import './App.css'
 import DashVideo from './components/DashVideo'
 
