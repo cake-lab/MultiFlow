@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { MediaPlayer } from "dashjs"
 import './App.css'
-import DashVideo from './components/DashVideo'
+import SingleVideo from './components/SingleVideo'
 
 function App() {
   const player = useMemo(() => {
@@ -9,7 +9,7 @@ function App() {
   }, []);
   return (
     <>
-      <DashVideo player={player} url="/dash/0/manifest.mpd"/>
+      <SingleVideo player={player} />
     </>
   )
 }
