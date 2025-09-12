@@ -66,6 +66,12 @@ def upload():
 @app.route("/")
 def live_frontend():
     return render_template("index.html")
+@app.route("/<path:filename>")
+def base_files(filename):
+    return send_from_directory(f"../client/web", filename)
+@app.route("/assets/<path:filename>")
+def assets_files(filename):
+    return send_from_directory(f"../client/web/assets", filename)
 @app.route("/dash/<camera_id>/<path:filename>")
 def dash_files(camera_id, filename):
     return send_from_directory(f"./chunks/{camera_id}", filename)
