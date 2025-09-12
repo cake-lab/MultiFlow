@@ -72,6 +72,12 @@ def base_files(filename):
 @app.route("/assets/<path:filename>")
 def assets_files(filename):
     return send_from_directory(f"../client/web/assets", filename)
+@app.route("/info")
+def num_cameras():
+    return {
+        "num_cameras": len(camera_streams),
+        "cameras": list(camera_streams.keys())
+        }
 @app.route("/dash/<camera_id>/<path:filename>")
 def dash_files(camera_id, filename):
     return send_from_directory(f"./chunks/{camera_id}", filename)
