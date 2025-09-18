@@ -1,4 +1,5 @@
 server/chunks/
+server/recordings/
 client/web/*
 logs
 *.log
