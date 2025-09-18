@@ -5,6 +5,8 @@ import cv2
 import numpy as np
 import queue
 import os
+import signal
+import sys
 
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../client/web"))
 app = Flask(__name__, template_folder=template_dir)
@@ -18,15 +20,21 @@ def writer_thread(ffmpeg, frame_queue):
     while True:
         try:
             chunk = frame_queue.get(timeout=1)
+            if chunk is None:
+                ffmpeg.stdin.close()
+                break
             ffmpeg.stdin.write(chunk)
         except queue.Empty:
             continue
-        except BrokenPipeError:
+        except BrokenPipeError as e:
+            print("FFmpeg process ended:", e)
             break
 
 def start_decoder(camera_id):
     """Start a new ffmpeg decoder process and threads for a camera."""
     out_dir = f"./chunks/{camera_id}"
+    os.makedirs(out_dir, exist_ok=True)
+    out_dir = f"./recordings"
     os.makedirs(out_dir, exist_ok=True)
     ffmpeg_cmd = [
         "ffmpeg",
@@ -49,17 +57,18 @@ def start_decoder(camera_id):
     ffmpeg_download_cmd = [
         "ffmpeg",
         "-y",
-        "-f", "rawvideo",
-        "-pix_fmt", "bgr24",
+        "-f", "h264",
         "-i", "pipe:0",
-        "-s", "640x480",
-        "-r", "30",
-        "-c:v", "libx264",
         "-preset", "ultrafast",
+        "-c:v", "libx264",
+        "-c:a", "aac",
+        "-pix_fmt", "yuv420p",
+        "-r", "30",
+        "-f", "mp4",
         f"./recordings/{camera_id}.mp4"
     ]
     ffmpeg_download = subprocess.Popen(
-        ffmpeg_download_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+        ffmpeg_download_cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )
     q = queue.Queue()
     q_download = queue.Queue()
@@ -78,9 +87,8 @@ def upload():
     # Start a decoder thread per new camera
     if cam_id not in camera_streams:
         start_decoder(cam_id)
-    copy_chunk = bytes(chunk)
     camera_streams[cam_id].put(chunk)
-    download_streams[cam_id].put(copy_chunk)
+    download_streams[cam_id].put(chunk)
     return "OK", 200
 @app.route("/")
 def live_frontend():
@@ -100,6 +108,16 @@ def num_cameras():
 @app.route("/dash/<camera_id>/<path:filename>")
 def dash_files(camera_id, filename):
     return send_from_directory(f"./chunks/{camera_id}", filename)
+@app.route("/dash/close/<camera_id>")
+def close_camera(camera_id):
+    if camera_id in camera_streams:
+        camera_streams[camera_id].put(None)
+        download_streams[camera_id].put(None)
+        del camera_streams[camera_id]
+        del download_streams[camera_id]
+        return f"Closed camera {camera_id}", 200
+    else:
+        return f"Camera {camera_id} not found", 404 
 def reset_chunks_dir(base_dir="./chunks"):
     if not os.path.exists(base_dir):
         os.makedirs(base_dir)
@@ -116,7 +134,17 @@ def reset_chunks_dir(base_dir="./chunks"):
                 for d in dirs:
                     os.rmdir(os.path.join(root, d))
             os.rmdir(path)
+
+def wait_for_key():
+    print("Press any key to shut down...")
+    sys.stdin.read(1)  # read 1 character
+    print("Key pressed, shutting down...")
+    for cam_id,q in camera_streams.items():
+        camera_streams[cam_id].put(None)
+        download_streams[cam_id].put(None)
 if __name__ == "__main__":
     import os
     reset_chunks_dir()
+    threading.Thread(target=wait_for_key, daemon=True).start()
     app.run(host="0.0.0.0", port=5000, threaded=True)
+

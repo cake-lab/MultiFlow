@@ -1,3 +1,4 @@
+import sys
 import cv2
 import requests
 import subprocess
@@ -5,11 +6,11 @@ import threading
 import queue
 
 SERVER_URL = "http://127.0.0.1:5000/upload"
-
+closed = False
 
 def writer_thread(ffmpeg, frame_queue):
     """Write raw frames into ffmpeg stdin."""
-    while True:
+    while not closed:
         try:
             frame = frame_queue.get(timeout=1)
             ffmpeg.stdin.write(frame.tobytes())
@@ -21,7 +22,7 @@ def writer_thread(ffmpeg, frame_queue):
 
 def reader_thread(ffmpeg, cam_id):
     """Read encoded chunks from ffmpeg stdout and send to server."""
-    while True:
+    while not closed:
         data = ffmpeg.stdout.read(4096)
         if not data:
             continue
@@ -74,7 +75,7 @@ def camera_thread(cam_id):
 
     print(f"Started camera {cam_id}")
 
-    while True:
+    while not closed:
         ret, frame = cap.read()
         if not ret:
             break
@@ -97,13 +98,19 @@ def detect_cameras(max_test=5):
             cams.append(i)
         cap.release()
     return cams
+def wait_for_key():
+    print("Press any key to shut down...")
+    sys.stdin.read(1)  # read 1 character
+    print("Key pressed, shutting down...")
+    closed = True
 
 
 if __name__ == "__main__":
     cameras = detect_cameras()
     print("Detected cameras:", cameras)
+
     for cam in cameras:
         threading.Thread(target=camera_thread, args=(cam,), daemon=True).start()
 
     # Keep main thread alive
-    threading.Event().wait()
+    wait_for_key()
