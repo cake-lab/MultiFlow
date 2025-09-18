@@ -10,6 +10,7 @@ template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../clien
 app = Flask(__name__, template_folder=template_dir)
 
 camera_streams = {}
+download_streams = {}
 
 
 def writer_thread(ffmpeg, frame_queue):
@@ -45,10 +46,27 @@ def start_decoder(camera_id):
     ffmpeg = subprocess.Popen(
         ffmpeg_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
     )
+    ffmpeg_download_cmd = [
+        "ffmpeg",
+        "-y",
+        "-f", "rawvideo",
+        "-pix_fmt", "bgr24",
+        "-i", "pipe:0",
+        "-s", "640x480",
+        "-r", "30",
+        "-c:v", "libx264",
+        "-preset", "ultrafast",
+        f"./recordings/{camera_id}.mp4"
+    ]
+    ffmpeg_download = subprocess.Popen(
+        ffmpeg_download_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+    )
     q = queue.Queue()
+    q_download = queue.Queue()
     camera_streams[camera_id] = q
+    download_streams[camera_id] = q_download
     threading.Thread(target=writer_thread, args=(ffmpeg, q), daemon=True).start()
-
+    threading.Thread(target=writer_thread, args=(ffmpeg_download, q_download), daemon=True).start()
 
 @app.route("/upload", methods=["POST"])
 def upload():
@@ -60,8 +78,9 @@ def upload():
     # Start a decoder thread per new camera
     if cam_id not in camera_streams:
         start_decoder(cam_id)
-
+    copy_chunk = bytes(chunk)
     camera_streams[cam_id].put(chunk)
+    download_streams[cam_id].put(copy_chunk)
     return "OK", 200
 @app.route("/")
 def live_frontend():
