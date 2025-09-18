@@ -77,19 +77,29 @@ def start_decoder(camera_id):
     threading.Thread(target=writer_thread, args=(ffmpeg, q), daemon=True).start()
     threading.Thread(target=writer_thread, args=(ffmpeg_download, q_download), daemon=True).start()
 
-@app.route("/upload", methods=["POST"])
+@app.route("/upload", methods=["POST", "DELETE"])
 def upload():
     cam_id = request.headers.get("Camera-ID", "0")
-    chunk = request.data
-    if not chunk:
-        return "No data", 400
+    if request.method == "DELETE":
+        if cam_id in camera_streams:
+            camera_streams[cam_id].put(None)
+            download_streams[cam_id].put(None)
+            del camera_streams[cam_id]
+            del download_streams[cam_id]
+            return f"Closed camera {cam_id}", 200
+        else:
+            return f"Camera {cam_id} not found", 404 
+    else:
+        chunk = request.data
+        if not chunk:
+            return "No data", 400
 
-    # Start a decoder thread per new camera
-    if cam_id not in camera_streams:
-        start_decoder(cam_id)
-    camera_streams[cam_id].put(chunk)
-    download_streams[cam_id].put(chunk)
-    return "OK", 200
+        # Start a decoder thread per new camera
+        if cam_id not in camera_streams:
+            start_decoder(cam_id)
+        camera_streams[cam_id].put(chunk)
+        download_streams[cam_id].put(chunk)
+        return "OK", 200
 @app.route("/")
 def live_frontend():
     return render_template("index.html")
@@ -108,16 +118,6 @@ def num_cameras():
 @app.route("/dash/<camera_id>/<path:filename>")
 def dash_files(camera_id, filename):
     return send_from_directory(f"./chunks/{camera_id}", filename)
-@app.route("/dash/close/<camera_id>")
-def close_camera(camera_id):
-    if camera_id in camera_streams:
-        camera_streams[camera_id].put(None)
-        download_streams[camera_id].put(None)
-        del camera_streams[camera_id]
-        del download_streams[camera_id]
-        return f"Closed camera {camera_id}", 200
-    else:
-        return f"Camera {camera_id} not found", 404 
 def reset_chunks_dir(base_dir="./chunks"):
     if not os.path.exists(base_dir):
         os.makedirs(base_dir)

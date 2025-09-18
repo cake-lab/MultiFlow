@@ -7,6 +7,7 @@ import queue
 
 SERVER_URL = "http://127.0.0.1:5000/upload"
 closed = False
+cameras = []
 
 def writer_thread(ffmpeg, frame_queue):
     """Write raw frames into ffmpeg stdin."""
@@ -103,6 +104,8 @@ def wait_for_key():
     sys.stdin.read(1)  # read 1 character
     print("Key pressed, shutting down...")
     closed = True
+    for camera in cameras:
+        requests.delete(SERVER_URL, headers={"Camera-ID": str(camera)})  
 
 
 if __name__ == "__main__":
