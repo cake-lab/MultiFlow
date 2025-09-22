@@ -1,30 +1,21 @@
 import DashVideo from './DashVideo'
 import { useEffect, useRef, useState } from 'react'
-function SingleVideo({player}) {
-    const [cameras, setCameras] = useState([]);
-    const getCameras = () => {
-        fetch('/info').then(res => res.json()).then(data => {
-            setCameras(data.cameras);
-        }).catch(err => {
-            console.error("Error fetching camera info:", err);
-        })
-    }
+function SingleVideo({player, cameras, setCameras, getCameras}) {
+    const [selectedCamera, setSelectedCamera] = useState(cameras.length > 0 ? cameras[0] : null);
     return (
         <>
             {
-                cameras.length > 0 ?
+                cameras.length > 0 &&
                     <>
-                        <select>
+                        <select value={selectedCamera} onChange={(e) => setSelectedCamera(e.target.value)}>
                             {cameras.map((camera, index) => (
                                 <option key={index} value={camera}>
                                     {camera}
                                 </option>
                             ))}
                         </select>
-                        <DashVideo player={player} url={`/dash/0/manifest.mpd`} />
+                        <DashVideo player={player} url={`/dash/${selectedCamera}/manifest.mpd`} />
                     </>
-                    : 
-                    <button onClick ={()=> getCameras()}>Reload Video</button>
             }
         </>
     )
