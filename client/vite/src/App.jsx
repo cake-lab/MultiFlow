@@ -8,20 +8,29 @@ function App() {
     return MediaPlayer().create();
   }, []);
   const [singleVideo, setSingleVideo] = useState(true);
+  const [cameras, setCameras] = useState([]);
+  const getCameras = () => {
+    fetch('/info').then(res => res.json()).then(data => {
+	setCameras(data.cameras);
+    }).catch(err => {
+	console.error("Error fetching camera info:", err);
+    })
+  }
   return (
+    <>
+      {singleVideo ? 
+        <>
+	  <button onClick={() => setSingleVideo(false)}>Switch to Multi Video</button>
+	  <SingleVideo player={player} cameras={cameras} setCameras={setCameras} getCameras={getCameras} />
+	  </>
+	:
 	<>
-		{singleVideo ? 
-			<>
-				<button onClick={() => setSingleVideo(false)}>Switch to Multi Video</button>
-				<SingleVideo player={player} />
-			</>
-       		:
-			<>
-				<button onClick={() => setSingleVideo(true)}>Switch to Single Video</button>
-				<AllVideos player={player} />
-			</>
-		}
+	  <button onClick={() => setSingleVideo(true)}>Switch to Single Video</button>
+	  <AllVideos player={player} cameras={cameras} setCameras={setCameras} getCameras={getCameras}/>
 	</>
+	}
+	{cameras.length === 0 && <button onClick={getCameras}>Get Cameras</button>}
+    </>
   )
 }
 
