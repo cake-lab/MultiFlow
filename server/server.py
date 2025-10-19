@@ -7,6 +7,7 @@ import queue
 import os
 import signal
 import sys
+import time
 
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../client/web"))
 app = Flask(__name__, template_folder=template_dir)
@@ -135,16 +136,55 @@ def reset_chunks_dir(base_dir="./chunks"):
                     os.rmdir(os.path.join(root, d))
             os.rmdir(path)
 
-def wait_for_key():
-    print("Press any key to shut down...")
-    sys.stdin.read(1)  # read 1 character
-    print("Key pressed, shutting down...")
-    for cam_id,q in camera_streams.items():
-        camera_streams[cam_id].put(None)
-        download_streams[cam_id].put(None)
+def stop_all_streams():
+    for cam_id in list(camera_streams.keys()):
+        try:
+            camera_streams[cam_id].put(None)
+        except Exception:
+            pass
+        try:
+            download_streams[cam_id].put(None)
+        except Exception:
+            pass
+
+
+def menu_loop():
+    """Interactive single-char menu:
+    l - list cameras
+    t - stop all streams
+    q - quit (stop all and exit)
+    """
+    print("Server interactive menu: l=list, t=stop all, q=quit")
+    while True:
+        try:
+            c = sys.stdin.read(1)
+        except Exception:
+            c = 'q'
+        if not c:
+            time.sleep(0.1)
+            continue
+        c = c.strip().lower()
+        if not c:
+            continue
+        if c == 'l':
+            print(f"Open camera streams: {list(camera_streams.keys())}")
+        elif c == 't':
+            print("Stopping all streams...")
+            stop_all_streams()
+        elif c == 'q':
+            print("Quitting: stopping all streams and exiting")
+            stop_all_streams()
+            # Attempt to gracefully stop Flask by sending SIGINT to this process
+            try:
+                os.kill(os.getpid(), signal.SIGINT)
+            except Exception:
+                pass
+            break
+        else:
+            print('Unknown command, use l/t/q')
 if __name__ == "__main__":
     import os
     reset_chunks_dir()
-    threading.Thread(target=wait_for_key, daemon=True).start()
+    threading.Thread(target=menu_loop, daemon=True).start()
     app.run(host="0.0.0.0", port=5000, threaded=True)
 
