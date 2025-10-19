@@ -39,15 +39,24 @@ def start_decoder(camera_id):
     os.makedirs(out_dir, exist_ok=True)
     ffmpeg_cmd = [
         "ffmpeg",
-        "-i", "pipe:0",                
+        # Ensure ffmpeg generates proper PTS when reading from a pipe
+        "-fflags", "+genpts",
+        # Use wallclock timestamps to keep segment timing consistent for live
+        "-use_wallclock_as_timestamps", "1",
+        "-i", "pipe:0",
+        # Low-latency encoding settings
         "-c:v", "libx264",
+        "-preset", "ultrafast",
+        "-tune", "zerolatency",
+        # Force a frame rate to stabilize segment durations (matching your source fps)
+        "-r", "30",
         "-c:a", "aac",
         "-f", "dash",
-        "-use_template", "1", 
-        "-use_timeline", "1", 
+        "-use_template", "1",
+        "-use_timeline", "1",
         "-seg_duration", "2",
-        "-frag_duration", "1", 
-        "-window_size", "6",  
+        "-frag_duration", "1",
+        "-window_size", "6",
         "-extra_window_size", "2",
         "-remove_at_exit", "1",
         f"./chunks/{camera_id}/manifest.mpd"
