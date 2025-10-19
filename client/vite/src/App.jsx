@@ -1,12 +1,9 @@
-import { useMemo, useState } from 'react'
-import { MediaPlayer } from "dashjs"
+import { useState } from 'react'
 import './App.css'
 import SingleVideo from './components/SingleVideo'
 import AllVideos from './components/AllVideos' 
 function App() {
-  const player = useMemo(() => {
-    return MediaPlayer().create();
-  }, []);
+  // Each DashVideo creates its own MediaPlayer instance now.
   const [singleVideo, setSingleVideo] = useState(true);
   const [cameras, setCameras] = useState([]);
   const getCameras = () => {
@@ -21,12 +18,12 @@ function App() {
       {singleVideo ? 
         <>
 	  <button onClick={() => setSingleVideo(false)}>Switch to Multi Video</button>
-	  <SingleVideo player={player} cameras={cameras} setCameras={setCameras} getCameras={getCameras} />
+    <SingleVideo cameras={cameras} setCameras={setCameras} getCameras={getCameras} />
 	  </>
 	:
 	<>
 	  <button onClick={() => setSingleVideo(true)}>Switch to Single Video</button>
-	  <AllVideos player={player} cameras={cameras} setCameras={setCameras} getCameras={getCameras}/>
+    <AllVideos cameras={cameras} setCameras={setCameras} getCameras={getCameras}/>
 	</>
 	}
 	{cameras.length === 0 && <button onClick={getCameras}>Get Cameras</button>}

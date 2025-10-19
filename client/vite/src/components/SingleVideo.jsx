@@ -1,7 +1,10 @@
 import DashVideo from './DashVideo'
 import { useEffect, useRef, useState } from 'react'
-function SingleVideo({player, cameras, setCameras, getCameras}) {
+function SingleVideo({cameras, setCameras, getCameras}) {
     const [selectedCamera, setSelectedCamera] = useState(cameras.length > 0 ? cameras[0] : null);
+    useEffect(() => {
+        setSelectedCamera(cameras.length > 0 ? cameras[0] : null);
+    }, [cameras]);
     return (
         <>
             {
@@ -14,7 +17,7 @@ function SingleVideo({player, cameras, setCameras, getCameras}) {
                                 </option>
                             ))}
                         </select>
-                        <DashVideo player={player} url={`/dash/${selectedCamera}/manifest.mpd`} />
+                        <DashVideo url={`/dash/${selectedCamera}/manifest.mpd`} />
                     </>
             }
         </>

@@ -1,6 +1,6 @@
 import DashVideo from './DashVideo';
 import React, { useState, useEffect } from 'react';
-function AllVideos({player, cameras, setCameras, getCameras}) {
+function AllVideos({cameras, setCameras, getCameras}) {
     return (
 	<>
 	  {cameras.length > 0 &&
@@ -8,7 +8,7 @@ function AllVideos({player, cameras, setCameras, getCameras}) {
 	      {cameras.map((camera, index) => (
 		<div key={index} style={{border: '1px solid black', padding: '10px'}}>
 		  <h3>Camera {camera}</h3>
-		  <DashVideo player={player} url={`/dash/${camera}/manifest.mpd`} />
+		  <DashVideo url={`/dash/${camera}/manifest.mpd`} />
 		</div>
 	      ))}
 	    </div>
