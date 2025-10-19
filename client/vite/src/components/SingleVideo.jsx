@@ -7,19 +7,22 @@ function SingleVideo({cameras, setCameras, getCameras}) {
     }, [cameras]);
     return (
         <>
-            {
-                cameras.length > 0 &&
-                    <>
-                        <select value={selectedCamera} onChange={(e) => setSelectedCamera(e.target.value)}>
+            {cameras.length > 0 ? (
+                <div className="card">
+                    <div style={{marginBottom:8}}>
+                        <select className="select" value={selectedCamera} onChange={(e) => setSelectedCamera(e.target.value)}>
                             {cameras.map((camera, index) => (
                                 <option key={index} value={camera}>
                                     {camera}
                                 </option>
                             ))}
                         </select>
-                        <DashVideo url={`/dash/${selectedCamera}/manifest.mpd`} />
-                    </>
-            }
+                    </div>
+                    <DashVideo url={`/dash/${selectedCamera}/manifest.mpd`} />
+                </div>
+            ) : (
+                <div className="empty-state">No cameras available</div>
+            )}
         </>
     )
 }

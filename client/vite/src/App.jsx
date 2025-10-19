@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import './App.css'
+import './styles.css'
 import SingleVideo from './components/SingleVideo'
 import AllVideos from './components/AllVideos' 
 function App() {
@@ -14,20 +14,28 @@ function App() {
     })
   }
   return (
-    <>
-      {singleVideo ? 
-        <>
-	  <button onClick={() => setSingleVideo(false)}>Switch to Multi Video</button>
-    <SingleVideo cameras={cameras} setCameras={setCameras} getCameras={getCameras} />
-	  </>
-	:
-	<>
-	  <button onClick={() => setSingleVideo(true)}>Switch to Single Video</button>
-    <AllVideos cameras={cameras} setCameras={setCameras} getCameras={getCameras}/>
-	</>
-	}
-	{cameras.length === 0 && <button onClick={getCameras}>Get Cameras</button>}
-    </>
+    <div>
+      <div className="topbar">
+        <div className="controls">
+          {singleVideo ? (
+            <button onClick={() => setSingleVideo(false)}>Switch to Multi Video</button>
+          ) : (
+            <button onClick={() => setSingleVideo(true)}>Switch to Single Video</button>
+          )}
+          <button onClick={getCameras}>{cameras.length > 0? "Reload" : "Get" } Cameras</button>
+        </div>
+      </div>
+
+      {singleVideo ? (
+        <div>
+          <SingleVideo cameras={cameras} setCameras={setCameras} getCameras={getCameras} />
+        </div>
+      ) : (
+        <div>
+          <AllVideos cameras={cameras} setCameras={setCameras} getCameras={getCameras} />
+        </div>
+      )}
+    </div>
   )
 }
 
