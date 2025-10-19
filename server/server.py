@@ -16,6 +16,9 @@ camera_streams = {}
 download_streams = {}
 
 
+SERVER_ROOT = os.path.abspath(os.path.dirname(__file__))
+
+
 def writer_thread(ffmpeg, frame_queue):
     """Continuously feed encoded chunks into ffmpeg stdin."""
     while True:
@@ -33,10 +36,11 @@ def writer_thread(ffmpeg, frame_queue):
 
 def start_decoder(camera_id):
     """Start a new ffmpeg decoder process and threads for a camera."""
-    out_dir = f"./chunks/{camera_id}"
-    os.makedirs(out_dir, exist_ok=True)
-    out_dir = f"./recordings"
-    os.makedirs(out_dir, exist_ok=True)
+    # Ensure chunks/ and recordings/ are created under the server package directory
+    chunks_dir = os.path.join(SERVER_ROOT, "chunks", camera_id)
+    os.makedirs(chunks_dir, exist_ok=True)
+    recordings_dir = os.path.join(SERVER_ROOT, "recordings")
+    os.makedirs(recordings_dir, exist_ok=True)
     ffmpeg_cmd = [
         "ffmpeg",
         # Ensure ffmpeg generates proper PTS when reading from a pipe
@@ -59,10 +63,10 @@ def start_decoder(camera_id):
         "-window_size", "6",
         "-extra_window_size", "2",
         "-remove_at_exit", "1",
-        f"./chunks/{camera_id}/manifest.mpd"
+        os.path.join(chunks_dir, "manifest.mpd")
     ]
     ffmpeg = subprocess.Popen(
-        ffmpeg_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+        ffmpeg_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, cwd=chunks_dir
     )
     ffmpeg_download_cmd = [
         "ffmpeg",
@@ -75,10 +79,10 @@ def start_decoder(camera_id):
         "-pix_fmt", "yuv420p",
         "-r", "30",
         "-f", "mp4",
-        f"./recordings/{camera_id}.mp4"
+        os.path.join(recordings_dir, f"{camera_id}.mp4")
     ]
     ffmpeg_download = subprocess.Popen(
-        ffmpeg_download_cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        ffmpeg_download_cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=recordings_dir
     )
     q = queue.Queue()
     q_download = queue.Queue()
@@ -127,8 +131,13 @@ def num_cameras():
         }
 @app.route("/dash/<camera_id>/<path:filename>")
 def dash_files(camera_id, filename):
-    return send_from_directory(f"./chunks/{camera_id}", filename)
+    # Serve chunk files from the server's chunks directory
+    return send_from_directory(os.path.join(SERVER_ROOT, "chunks", camera_id), filename)
 def reset_chunks_dir(base_dir="./chunks"):
+    # Normalize base_dir to be inside the server package unless an absolute path was provided
+    if not os.path.isabs(base_dir):
+        base_dir = os.path.join(SERVER_ROOT, base_dir)
+
     if not os.path.exists(base_dir):
         os.makedirs(base_dir)
         return
