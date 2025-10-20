@@ -34,9 +34,11 @@ def _writer_loop(ffmpeg, frame_queue, stop_event):
 
 def _reader_loop(ffmpeg, cam_unique_id, stop_event):
     """Read encoded chunks from ffmpeg stdout and send to server."""
-    while not stop_event.is_set():
+    while True:
         data = ffmpeg.stdout.read(4096)
         if not data:
+            if ffmpeg.poll() is not None:
+                break
             time.sleep(0.01)
             continue
         try:
@@ -66,18 +68,20 @@ class CameraController:
         if self._thread and self._thread.is_alive():
             print(f"Camera {self.unique_id} already running")
             return
+        self.stop_event.clear()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
     def stop(self):
         self.stop_event.set()
         # tell server we're stopping
+        if self._thread:
+            self._thread.join()
+            self._thread = None
         try:
             requests.delete(SERVER_URL, headers={"Camera-ID": str(self.unique_id)}, timeout=1)
         except requests.exceptions.RequestException:
             pass
-        if self._thread:
-            self._thread.join(timeout=2)
 
     def _run(self):
         cap = cv2.VideoCapture(self.device_index)
@@ -131,6 +135,8 @@ class CameraController:
             ffmpeg.stdin.close()
         except Exception:
             pass
+        writer.join()
+        reader.join()
         ffmpeg.wait()
 
 
