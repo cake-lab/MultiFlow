@@ -6,8 +6,18 @@ import subprocess
 import threading
 import queue
 import time
+import argparse
+import urllib.parse
 
-SERVER_URL = "http://127.0.0.1:5000/upload"
+DEFAULT_SERVER_URL = "http://127.0.0.1:5000/upload"
+
+SERVER_URL = DEFAULT_SERVER_URL
+
+
+def build_server_url(host: str, port: int) -> str:
+    # build upload endpoint URL from host and port
+    base = f"http://{host}:{port}"
+    return urllib.parse.urljoin(base, "/upload")
 
 
 def _writer_loop(ffmpeg, frame_queue, stop_event):
@@ -139,7 +149,7 @@ def make_unique_id(hostname: str, index: int) -> str:
     return f"{hostname}-{index}"
 
 
-def interactive_menu():
+def interactive_menu(server_url: str = DEFAULT_SERVER_URL):
     hostname = socket.gethostname()
     detected = detect_cameras()
     controllers = {}
@@ -176,6 +186,8 @@ def interactive_menu():
             print_menu()
         elif c == 's':
             for ctrl in controllers.values():
+                # inject server url into controller if needed
+                # controllers use global SERVER_URL variable via module-level constant; we'll set it here
                 ctrl.start()
         elif c == 't':
             for ctrl in controllers.values():
@@ -189,5 +201,25 @@ def interactive_menu():
             print('Unknown command, press l/s/t/q')
 
 
+def main(argv=None):
+    parser = argparse.ArgumentParser(description='MultiFlow client')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--server-url', help='Full server upload URL (overrides --host/--port)')
+    parser.add_argument('--host', help='Server host to connect to (used with --port)', default='127.0.0.1')
+    parser.add_argument('--port', type=int, help='Server port to connect to (used with --host)', default=5000)
+    args = parser.parse_args(argv)
+
+    if args.server_url:
+        server_url = args.server_url
+    else:
+        server_url = build_server_url(args.host, args.port)
+
+    # override module-level default used by reader loop
+    global SERVER_URL
+    SERVER_URL = server_url
+
+    interactive_menu(server_url=server_url)
+
+
 if __name__ == '__main__':
-    interactive_menu()
+    main()

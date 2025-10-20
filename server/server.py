@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import queue
 import os
+import argparse
 import signal
 import sys
 import time
@@ -200,9 +201,18 @@ def menu_loop():
             break
         else:
             print('Unknown command, use l/t/q')
-if __name__ == "__main__":
-    import os
+def main(argv=None):
+    parser = argparse.ArgumentParser(description='MultiFlow server')
+    parser.add_argument('--host', default='0.0.0.0', help='Host to bind the server to')
+    parser.add_argument('--port', type=int, default=5000, help='Port to listen on')
+    parser.add_argument('--debug', action='store_true', help='Enable Flask debug mode')
+    args = parser.parse_args(argv)
+
     reset_chunks_dir()
     threading.Thread(target=menu_loop, daemon=True).start()
-    app.run(host="0.0.0.0", port=5000, threaded=True)
+    app.run(host=args.host, port=args.port, threaded=True, debug=args.debug)
+
+
+if __name__ == "__main__":
+    main()
 
