@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './styles.css'
 import SingleVideo from './components/SingleVideo'
 import AllVideos from './components/AllVideos' 
@@ -13,6 +13,9 @@ function App() {
 	console.error("Error fetching camera info:", err);
     })
   }
+  useEffect(() => {
+    getCameras();
+  }, []);
   return (
     <div>
       <div className="topbar">
