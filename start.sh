@@ -28,8 +28,14 @@ if [ $REBUILD -eq 1 ] || [ ! -f "$WEB_INDEX" ]; then
   fi
 
   if [ ! -d "$VITE_DIR/node_modules" ]; then
-    info "node_modules not found in client/vite. Running 'npm install'..."
-    (cd "$VITE_DIR" && npm install)
+    # Prefer a clean, reproducible install when lockfile exists
+    if [ -f "$VITE_DIR/package-lock.json" ] || [ -f "$VITE_DIR/npm-shrinkwrap.json" ]; then
+      info "node_modules not found in client/vite. Lockfile detected - running 'npm ci'..."
+      (cd "$VITE_DIR" && npm ci)
+    else
+      info "node_modules not found in client/vite. Running 'npm install'..."
+      (cd "$VITE_DIR" && npm install)
+    fi
   fi
 
   (cd "$VITE_DIR" && npm run build)

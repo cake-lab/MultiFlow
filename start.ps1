@@ -35,11 +35,34 @@ if ($Rebuild -or -not (Test-Path $clientWebIndex)) {
     $nodeModules = Join-Path $viteDir 'node_modules'
     if (-not (Test-Path $nodeModules)) {
         Write-Info "node_modules not found in client/vite. Running 'npm install'..."
-        $i = Start-Process -FilePath npm -ArgumentList 'install' -WorkingDirectory $viteDir -NoNewWindow -Wait -PassThru
+
+        # Locate npm. On Windows npm is often a cmd shim (npm.cmd). Use Get-Command to find the executable.
+        $npmCmd = (Get-Command npm -ErrorAction SilentlyContinue)
+        if (-not $npmCmd) {
+            Write-Err "npm is not available in PATH. Install Node.js and npm to build the frontend."
+            exit 1
+        }
+
+        # If the resolved command is a file ending with .cmd or .exe, call it directly. Otherwise invoke via cmd.exe /c.
+        $npmPath = $npmCmd.Source
+        if ($npmPath -and ($npmPath -match '\.cmd$' -or $npmPath -match '\.exe$')) {
+            $i = Start-Process -FilePath $npmPath -ArgumentList 'install' -WorkingDirectory $viteDir -NoNewWindow -Wait -PassThru
+        } else {
+            # Fallback: use cmd.exe /c npm install so shell script shims work correctly
+            $i = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','npm install' -WorkingDirectory $viteDir -NoNewWindow -Wait -PassThru
+        }
+
         if ($i.ExitCode -ne 0) { Write-Err "npm install failed (exit $($i.ExitCode))"; exit $i.ExitCode }
     }
 
-    $b = Start-Process -FilePath npm -ArgumentList 'run','build' -WorkingDirectory $viteDir -NoNewWindow -Wait -PassThru
+    # Run the build script
+    $npmCmd = (Get-Command npm -ErrorAction SilentlyContinue)
+    $npmPath = $npmCmd.Source
+    if ($npmPath -and ($npmPath -match '\.cmd$' -or $npmPath -match '\.exe$')) {
+        $b = Start-Process -FilePath $npmPath -ArgumentList 'run','build' -WorkingDirectory $viteDir -NoNewWindow -Wait -PassThru
+    } else {
+        $b = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','npm run build' -WorkingDirectory $viteDir -NoNewWindow -Wait -PassThru
+    }
     if ($b.ExitCode -ne 0) { Write-Err "Frontend build failed (exit $($b.ExitCode))"; exit $b.ExitCode }
     Write-Info "Frontend build finished."
 } else {
