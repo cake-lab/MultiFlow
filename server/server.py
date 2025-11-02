@@ -16,6 +16,8 @@ app = Flask(__name__, template_folder=template_dir)
 
 camera_streams = {}
 download_streams = {}
+telemetry_data_amounts = {}
+telemetry_data_locks = {}
 
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
@@ -92,8 +94,21 @@ def start_decoder(camera_id):
     q_download = queue.Queue()
     camera_streams[camera_id] = q
     download_streams[camera_id] = q_download
+    telemetry_data_amounts[camera_id] = 0
+    telemetry_data_locks[camera_id] = threading.Lock()
     threading.Thread(target=writer_thread, args=(ffmpeg, q), daemon=True).start()
     threading.Thread(target=writer_thread, args=(ffmpeg_download, q_download), daemon=True).start()
+
+def aggregate_telemetry():
+    while True:
+        time.sleep(1)
+        total_traffic = 0
+        for cam_id in list(telemetry_data_amounts.keys()):
+            with telemetry_data_locks[cam_id]:
+                amount = telemetry_data_amounts[cam_id]
+                telemetry_data_amounts[cam_id] = 0
+            total_traffic += amount
+        print(f"[Telemetry] {time.strftime('%Y-%m-%d %H:%M:%S')} - Total incoming data: {total_traffic / 1024:.2f} KB/s")
 
 @app.route("/upload", methods=["POST", "DELETE"])
 def upload():
@@ -104,6 +119,8 @@ def upload():
             download_streams[cam_id].put(None)
             del camera_streams[cam_id]
             del download_streams[cam_id]
+            del telemetry_data_amounts[cam_id]
+            del telemetry_data_locks[cam_id]
             return f"Closed camera {cam_id}", 200
         else:
             return f"Camera {cam_id} not found", 404 
@@ -117,6 +134,8 @@ def upload():
             start_decoder(cam_id)
         camera_streams[cam_id].put(chunk)
         download_streams[cam_id].put(chunk)
+        with telemetry_data_locks[cam_id]:
+            telemetry_data_amounts[cam_id] += len(chunk)
         return "OK", 200
 @app.route("/")
 def live_frontend():
@@ -213,6 +232,7 @@ def main(argv=None):
 
     reset_chunks_dir()
     threading.Thread(target=menu_loop, daemon=True).start()
+    threading.Thread(target=aggregate_telemetry, daemon=True).start()
     app.run(host=args.host, port=args.port, threaded=True)
 
 
