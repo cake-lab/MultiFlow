@@ -9,6 +9,7 @@ import argparse
 import signal
 import sys
 import time
+import logging
 
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../client/web"))
 app = Flask(__name__, template_folder=template_dir)
@@ -16,6 +17,8 @@ app = Flask(__name__, template_folder=template_dir)
 camera_streams = {}
 download_streams = {}
 
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 SERVER_ROOT = os.path.abspath(os.path.dirname(__file__))
 
@@ -210,7 +213,7 @@ def main(argv=None):
 
     reset_chunks_dir()
     threading.Thread(target=menu_loop, daemon=True).start()
-    app.run(host=args.host, port=args.port, threaded=True, debug=args.debug)
+    app.run(host=args.host, port=args.port, threaded=True)
 
 
 if __name__ == "__main__":
