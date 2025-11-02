@@ -64,11 +64,6 @@ def start_decoder(camera_id):
         "-f", "dash",
         "-use_template", "1",
         "-use_timeline", "1",
-        "-seg_duration", "2",
-        "-frag_duration", "1",
-        "-window_size", "6",
-        "-extra_window_size", "2",
-        "-remove_at_exit", "1",
         os.path.join(chunks_dir, "manifest.mpd")
     ]
     ffmpeg = subprocess.Popen(
