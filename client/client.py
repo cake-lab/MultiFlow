@@ -69,6 +69,7 @@ class CameraController:
             print(f"Camera {self.unique_id} already running")
             return
         self.stop_event.clear()
+        self.unique_id_timestamped = f"{self.unique_id}-{time.strftime('%Y.%m.%d.%H.%M.%S')}"
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
@@ -79,7 +80,7 @@ class CameraController:
             self._thread.join()
             self._thread = None
         try:
-            requests.delete(SERVER_URL, headers={"Camera-ID": str(self.unique_id)}, timeout=1)
+            requests.delete(SERVER_URL, headers={"Camera-ID": str(self.unique_id_timestamped)}, timeout=1)
         except requests.exceptions.RequestException:
             pass
 
@@ -115,11 +116,11 @@ class CameraController:
 
         # Start writer + reader threads
         writer = threading.Thread(target=_writer_loop, args=(ffmpeg, frame_queue, self.stop_event), daemon=True)
-        reader = threading.Thread(target=_reader_loop, args=(ffmpeg, self.unique_id, self.stop_event), daemon=True)
+        reader = threading.Thread(target=_reader_loop, args=(ffmpeg, self.unique_id_timestamped, self.stop_event), daemon=True)
         writer.start()
         reader.start()
 
-        print(f"Started camera {self.unique_id} (device {self.device_index})")
+        print(f"Started camera {self.unique_id_timestamped} (device {self.device_index})")
 
         while not self.stop_event.is_set():
             ret, frame = cap.read()
