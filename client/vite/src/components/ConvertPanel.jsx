@@ -1,0 +1,129 @@
+import React, { useEffect, useRef } from 'react'
+
+function ConvertPanel({ 
+  pastRecordings,
+  convertedFiles,
+  converting, setConverting,
+  fetchInfo
+}) {
+  const eventSources = useRef({})
+
+  useEffect(() => {
+    // Ensure event sources exist for active conversions
+    converting.forEach(id => {
+      if (!eventSources.current[id]) {
+        const es = new EventSource(`/convert-status/${encodeURIComponent(id)}`)
+        es.onmessage = (e) => {
+          const status = (e.data || '').trim()
+          if (status === 'in_progress') {
+            setConverting(prev => Array.from(new Set([...prev, id])))
+          } else if (status === 'completed') {
+            // conversion done — remove from converting and refresh info
+            setConverting(prev => prev.filter(x => x !== id))
+            fetchInfo()
+            es.close()
+            delete eventSources.current[id]
+          } else if (status === 'not_found') {
+            setConverting(prev => prev.filter(x => x !== id))
+            es.close()
+            delete eventSources.current[id]
+            fetchInfo()
+          }
+        }
+        es.onerror = () => {
+          // keep trying; close if readyState closed
+          if (es.readyState === EventSource.CLOSED) {
+            es.close()
+            delete eventSources.current[id]
+          }
+        }
+        eventSources.current[id] = es
+      }
+    })
+    // Cleanup function to close EventSource connections for items no longer in converting
+    return () => {
+      Object.keys(eventSources.current).forEach(id => {
+        if (!converting.includes(id)) {
+          eventSources.current[id].close();
+          delete eventSources.current[id];
+        }
+      });
+    };
+  }, [converting, fetchInfo, setConverting])
+
+  const startConversion = (cameraId) => {
+    fetch(`/convert/${encodeURIComponent(cameraId)}`, { method: 'POST' })
+      .then(res => {
+        if (res.status === 202) return res.json()
+        return res.json().then(err => Promise.reject(err))
+      })
+      .then(() => {
+        // add to converting and open eventsource (effect hook will do the rest)
+        setConverting(prev => Array.from(new Set([...prev, cameraId])))
+      })
+      .catch(err => {
+        console.error('Failed to start conversion', err)
+        alert('Failed to start conversion: ' + (err && err.error ? err.error : JSON.stringify(err)))
+      })
+  }
+
+  const downloadFile = (filename) => {
+    // open the download endpoint in a new tab/window to trigger download
+    window.open(`/download/${encodeURIComponent(filename)}`, '_blank')
+  }
+
+  // compute lists
+  const convertedBasenames = new Set((convertedFiles || []).map(f => f.replace(/\.mp4$/i, '')))
+  const availableToConvert = (pastRecordings || []).filter(id => !convertedBasenames.has(id) && !(converting || []).includes(id))
+
+  return (
+    <div className="card">
+      <h2>Conversions & Downloads</h2>
+      <div className="panel-rows">
+        <div className="panel-col">
+          <h3>Available for conversion</h3>
+          {availableToConvert.length === 0 ? <div className="empty-state">No available recordings to convert</div> : (
+            <ul>
+              {availableToConvert.map(id => (
+                <li key={id} className="list-item">
+                  <span>{id}</span>
+                  <button className="ml-8" onClick={() => startConversion(id)}>Convert</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="panel-col">
+          <h3>Converting</h3>
+          {converting.length === 0 ? <div className="empty-state">No conversions in progress</div> : (
+            <ul>
+              {converting.map(id => (
+                <li key={id} className="list-item">
+                  <strong>{id}</strong>
+                  <span className="ml-8">⏳ in progress</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="panel-col">
+          <h3>Available downloads</h3>
+          {convertedFiles.length === 0 ? <div className="empty-state">No converted files</div> : (
+            <ul>
+              {convertedFiles.map(f => (
+                <li key={f} className="list-item">
+                  <span>{f}</span>
+                  <button className="ml-8" onClick={() => downloadFile(f)}>Download</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default ConvertPanel

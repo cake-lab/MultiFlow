@@ -14,6 +14,9 @@ import logging
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../client/web"))
 app = Flask(__name__, template_folder=template_dir)
 
+active_conversions = {}
+active_conversions_lock = threading.Lock()
+
 camera_streams = {}
 telemetry_data_amounts = {}
 telemetry_data_locks = {}
@@ -124,10 +127,22 @@ def num_cameras():
     except FileNotFoundError:
         all_dirs = []
     past_recordings = [d for d in all_dirs if d not in camera_streams]
+    with active_conversions_lock:
+        conversions_in_progress = list(active_conversions.keys())
+    converted_dir = os.path.join(SERVER_ROOT, "converted")
+    converted_files = []
+    if os.path.isdir(converted_dir):
+        converted_files = [
+            f for f in os.listdir(converted_dir)
+            if os.path.isfile(os.path.join(converted_dir, f)) and f.lower().endswith(".mp4")
+        ]
+        converted_files.sort()
     return {
         "num_cameras": len(camera_streams),
         "cameras": list(camera_streams.keys()),
-        "past_recordings": sorted(past_recordings)
+        "past_recordings": sorted(past_recordings),
+        "conversions_in_progress": conversions_in_progress,
+        "converted_files": converted_files
         }
 @app.route("/dash/<camera_id>/<path:filename>")
 def dash_files(camera_id, filename):
@@ -142,12 +157,119 @@ def setup_chunks_dir(base_dir="./chunks"):
         os.makedirs(base_dir)
         return
 
+def _conversion_worker(camera_id, manifest_path, output_path):
+    """Run ffmpeg to convert a DASH manifest to a single MP4 file.
+    This runs in a background thread so the HTTP request can return immediately.
+    """
+    try:
+        # Use copy to avoid re-encoding when possible; allow necessary protocols
+        ffmpeg_cmd = [
+            "ffmpeg",
+            "-i", manifest_path,
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            output_path
+        ]
+        print(f"[Conversion] Starting conversion for {camera_id}: {' '.join(ffmpeg_cmd)}")
+        proc = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=os.path.dirname(output_path))
+        stdout, stderr = proc.communicate()
+        if proc.returncode == 0:
+            print(f"[Conversion] Finished converting {camera_id} -> {output_path}")
+        else:
+            print(f"[Conversion] FFmpeg failed for {camera_id} (code {proc.returncode}): {stderr.decode(errors='ignore')}")
+    except Exception as e:
+        print(f"[Conversion] Exception while converting {camera_id}: {e}")
+    finally:
+        with active_conversions_lock:
+            active_conversions.pop(camera_id, None)
+
+def start_conversion(camera_id, manifest_path, output_path):
+    with active_conversions_lock:
+        if camera_id in active_conversions:
+            raise RuntimeError(f"Conversion already in progress for {camera_id}")
+        thread = threading.Thread(target=_conversion_worker, args=(camera_id, manifest_path, output_path), daemon=True)
+        active_conversions[camera_id] = thread
+        thread.start()
+        return thread.ident
+
+@app.route("/convert/<camera_id>", methods=["POST"])
+def convert_route(camera_id):
+    """
+    Start a background conversion of a past recording (chunks/<camera_id>/manifest.mpd)
+    into converted/<camera_id>.mp4. Returns 202 if started, 404 if not found, 409 if already converting.
+    """
+    chunks_dir = os.path.join(SERVER_ROOT, "chunks", camera_id)
+    manifest_path = os.path.join(chunks_dir, "manifest.mpd")
+    if not os.path.isdir(chunks_dir) or not os.path.exists(manifest_path):
+        return {"error": "Recording not found"}, 404
+
+    converted_dir = os.path.join(SERVER_ROOT, "converted")
+    os.makedirs(converted_dir, exist_ok=True)
+    output_path = os.path.join(converted_dir, f"{camera_id}.mp4")
+
+    if os.path.exists(output_path):
+        return {"error": "Converted file already exists"}, 409
+
+    try:
+        pid = start_conversion(camera_id, manifest_path, output_path)
+    except RuntimeError as e:
+        return {"error": str(e)}, 409
+    except Exception as e:
+        return {"error": f"Failed to start conversion: {e}"}, 500
+
+    return {
+        "status": "started",
+        "camera_id": camera_id,
+        "output": f"converted/{camera_id}.mp4",
+        "thread_id": pid
+    }, 202
+
 def stop_all_streams():
     for cam_id in list(camera_streams.keys()):
         try:
             camera_streams[cam_id].put(None)
         except Exception:
             pass
+@app.route("/convert-status/<camera_id>")
+def convert_status(camera_id):
+    if os.path.basename(camera_id) != camera_id:
+        return {"error": "Invalid filename"}, 400
+    def stream():
+        last_status = None
+        while True:
+            with active_conversions_lock:
+                in_progress = camera_id in active_conversions
+            converted_dir = os.path.join(SERVER_ROOT, "converted")
+            output_path = os.path.join(converted_dir, f"{camera_id}.mp4")
+            if in_progress:
+                status = "in_progress"
+            elif os.path.exists(output_path):
+                status = "completed"
+            else:
+                status = "not_found"
+            if status != last_status:
+                yield f"data: {status}\n\n"
+                last_status = status
+            if status in ("completed", "not_found"):
+                break
+            time.sleep(1)
+    return app.response_class(stream(), mimetype='text/event-stream')
+@app.route("/download/<filename>")
+def download_converted(filename):
+    # Disallow directory traversal: filename must not contain path separators
+    if os.path.basename(filename) != filename:
+        return {"error": "Invalid filename"}, 400
+    converted_dir = os.path.join(SERVER_ROOT, "converted")
+    if not os.path.isdir(converted_dir):
+        return {"error": "No converted recordings available"}, 404
+    file_path = os.path.join(converted_dir, filename)
+    if not os.path.isfile(file_path):
+        return {"error": "File not found"}, 404
+    with active_conversions_lock:
+        if os.path.splitext(filename)[0] in active_conversions:
+            return {"error": "Conversion still in progress"}, 409
+    # Serve the file as an attachment to prompt download
+    return send_from_directory(converted_dir, filename, as_attachment=True)
 
 def menu_loop():
     """Interactive single-char menu:

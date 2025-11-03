@@ -1,5 +1,5 @@
 server/chunks/
-server/recordings/
+server/converted/
 client/web/*
 logs
 *.log
