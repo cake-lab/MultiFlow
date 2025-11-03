@@ -63,7 +63,7 @@ class CameraController:
         self.unique_id = unique_id
         self.stop_event = threading.Event()
         self._thread = None
-        self.__unique_id_timestamped = None
+        self.unique_id_timestamped = None
 
     def start(self):
         if self._thread and self._thread.is_alive():
@@ -80,7 +80,7 @@ class CameraController:
         if self._thread:
             self._thread.join()
             self._thread = None
-        if self.__unique_id_timestamped:
+        if self.unique_id_timestamped:
             try:
                 requests.delete(SERVER_URL, headers={"Camera-ID": str(self.unique_id_timestamped)}, timeout=1)
             except requests.exceptions.RequestException:
