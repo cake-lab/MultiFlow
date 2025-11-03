@@ -47,7 +47,7 @@ function ConvertPanel({
         delete eventSources.current[id];
       });
     };
-  }, [converting])
+  }, [converting, fetchInfo, setConverting])
 
   const startConversion = (cameraId) => {
     fetch(`/convert/${encodeURIComponent(cameraId)}`, { method: 'POST' })
