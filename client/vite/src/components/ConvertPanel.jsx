@@ -40,6 +40,13 @@ function ConvertPanel({
         eventSources.current[id] = es
       }
     })
+    // Cleanup function to close EventSource connections for items no longer in converting
+    return () => {
+      Object.keys(eventSources.current).forEach(id => {
+        eventSources.current[id].close();
+        delete eventSources.current[id];
+      });
+    };
   }, [converting])
 
   const startConversion = (cameraId) => {
