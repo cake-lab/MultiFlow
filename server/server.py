@@ -127,10 +127,22 @@ def num_cameras():
     except FileNotFoundError:
         all_dirs = []
     past_recordings = [d for d in all_dirs if d not in camera_streams]
+    with active_conversions_lock:
+        conversions_in_progress = list(active_conversions.keys())
+    converted_dir = os.path.join(SERVER_ROOT, "converted")
+    converted_files = []
+    if os.path.isdir(converted_dir):
+        converted_files = [
+            f for f in os.listdir(converted_dir)
+            if os.path.isfile(os.path.join(converted_dir, f)) and f.lower().endswith(".mp4")
+        ]
+        converted_files.sort()
     return {
         "num_cameras": len(camera_streams),
         "cameras": list(camera_streams.keys()),
-        "past_recordings": sorted(past_recordings)
+        "past_recordings": sorted(past_recordings),
+        "conversions_in_progress": conversions_in_progress,
+        "converted_files": converted_files
         }
 @app.route("/dash/<camera_id>/<path:filename>")
 def dash_files(camera_id, filename):
