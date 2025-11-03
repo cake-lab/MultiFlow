@@ -43,10 +43,8 @@ function ConvertPanel({
     // Cleanup function to close EventSource connections for items no longer in converting
     return () => {
       Object.keys(eventSources.current).forEach(id => {
-        if (!converting.includes(id)) {
-          eventSources.current[id].close();
-          delete eventSources.current[id];
-        }
+        eventSources.current[id].close();
+        delete eventSources.current[id];
       });
     };
   }, [converting, fetchInfo, setConverting])
