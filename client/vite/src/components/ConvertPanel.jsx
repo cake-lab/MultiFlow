@@ -72,20 +72,6 @@ function ConvertPanel({
       <h2>Conversions & Downloads</h2>
       <div className="panel-rows">
         <div className="panel-col">
-          <h3>Converting</h3>
-          {converting.length === 0 ? <div className="empty-state">No conversions in progress</div> : (
-            <ul>
-              {converting.map(id => (
-                <li key={id} className="list-item">
-                  <strong>{id}</strong>
-                  <span className="ml-8">⏳ in progress</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="panel-col">
           <h3>Available for conversion</h3>
           {availableToConvert.length === 0 ? <div className="empty-state">No available recordings to convert</div> : (
             <ul>
@@ -93,6 +79,20 @@ function ConvertPanel({
                 <li key={id} className="list-item">
                   <span>{id}</span>
                   <button className="ml-8" onClick={() => startConversion(id)}>Convert</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="panel-col">
+          <h3>Converting</h3>
+          {converting.length === 0 ? <div className="empty-state">No conversions in progress</div> : (
+            <ul>
+              {converting.map(id => (
+                <li key={id} className="list-item">
+                  <strong>{id}</strong>
+                  <span className="ml-8">⏳ in progress</span>
                 </li>
               ))}
             </ul>
