@@ -225,6 +225,28 @@ def stop_all_streams():
             camera_streams[cam_id].put(None)
         except Exception:
             pass
+@app.route("/convert-status/<camera_id>")
+def convert_status(camera_id):
+    def stream():
+        last_status = None
+        while True:
+            with active_conversions_lock:
+                in_progress = camera_id in active_conversions
+            converted_dir = os.path.join(SERVER_ROOT, "converted")
+            output_path = os.path.join(converted_dir, f"{camera_id}.mp4")
+            if in_progress:
+                status = "in_progress"
+            elif os.path.exists(output_path):
+                status = "completed"
+            else:
+                status = "not_found"
+            if status != last_status:
+                yield f"data: {status}\n\n"
+                last_status = status
+            if status in ("completed", "not_found"):
+                break
+            time.sleep(1)
+    return app.response_class(stream(), mimetype='text/event-stream')
 
 def menu_loop():
     """Interactive single-char menu:
