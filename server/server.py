@@ -166,7 +166,7 @@ def _conversion_worker(camera_id, manifest_path, output_path):
         ffmpeg_cmd = [
             "ffmpeg",
             "-i", manifest_path,
-             "-c:v", "libx264",
+            "-c:v", "libx264",
             "-pix_fmt", "yuv420p",
             output_path
         ]
