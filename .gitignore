@@ -1,5 +1,6 @@
 server/chunks/
 server/converted/
+client/testing/tests/basic/
 client/web/*
 logs
 *.log
