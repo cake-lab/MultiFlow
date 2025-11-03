@@ -10,13 +10,10 @@ Commands (single-char or with name):
 
 Place mp4 files in `client/testing/tests/<testname>/` directories.
 """
-import sys
 import socket
-import cv2
 import requests
 import subprocess
 import threading
-import queue
 import time
 import argparse
 from pathlib import Path
