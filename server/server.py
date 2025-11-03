@@ -258,6 +258,9 @@ def download_converted(filename):
     file_path = os.path.join(converted_dir, filename)
     if not os.path.isfile(file_path):
         return {"error": "File not found"}, 404
+    with active_conversions_lock:
+        if filename.rsplit('.', 1)[0] in active_conversions:
+            return {"error": "Conversion still in progress"}, 409
     # Serve the file as an attachment to prompt download
     return send_from_directory(converted_dir, filename, as_attachment=True)
 
