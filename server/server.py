@@ -15,7 +15,6 @@ template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../clien
 app = Flask(__name__, template_folder=template_dir)
 
 camera_streams = {}
-download_streams = {}
 telemetry_data_amounts = {}
 telemetry_data_locks = {}
 
@@ -45,8 +44,6 @@ def start_decoder(camera_id):
     # Ensure chunks/ and recordings/ are created under the server package directory
     chunks_dir = os.path.join(SERVER_ROOT, "chunks", camera_id)
     os.makedirs(chunks_dir, exist_ok=True)
-    recordings_dir = os.path.join(SERVER_ROOT, "recordings")
-    os.makedirs(recordings_dir, exist_ok=True)
     ffmpeg_cmd = [
         "ffmpeg",
         # Ensure ffmpeg generates proper PTS when reading from a pipe
@@ -69,30 +66,11 @@ def start_decoder(camera_id):
     ffmpeg = subprocess.Popen(
         ffmpeg_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, cwd=chunks_dir
     )
-    ffmpeg_download_cmd = [
-        "ffmpeg",
-        "-y",
-        "-f", "h264",
-        "-i", "pipe:0",
-        "-preset", "ultrafast",
-        "-c:v", "libx264",
-        "-c:a", "aac",
-        "-pix_fmt", "yuv420p",
-        "-r", "30",
-        "-f", "mp4",
-        os.path.join(recordings_dir, f"{camera_id}.mp4")
-    ]
-    ffmpeg_download = subprocess.Popen(
-        ffmpeg_download_cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=recordings_dir
-    )
     q = queue.Queue()
-    q_download = queue.Queue()
     camera_streams[camera_id] = q
-    download_streams[camera_id] = q_download
     telemetry_data_amounts[camera_id] = 0
     telemetry_data_locks[camera_id] = threading.Lock()
     threading.Thread(target=writer_thread, args=(ffmpeg, q), daemon=True).start()
-    threading.Thread(target=writer_thread, args=(ffmpeg_download, q_download), daemon=True).start()
 
 def aggregate_telemetry():
     while True:
@@ -111,9 +89,7 @@ def upload():
     if request.method == "DELETE":
         if cam_id in camera_streams:
             camera_streams[cam_id].put(None)
-            download_streams[cam_id].put(None)
             del camera_streams[cam_id]
-            del download_streams[cam_id]
             del telemetry_data_amounts[cam_id]
             del telemetry_data_locks[cam_id]
             return f"Closed camera {cam_id}", 200
@@ -128,7 +104,6 @@ def upload():
         if cam_id not in camera_streams:
             start_decoder(cam_id)
         camera_streams[cam_id].put(chunk)
-        download_streams[cam_id].put(chunk)
         with telemetry_data_locks[cam_id]:
             telemetry_data_amounts[cam_id] += len(chunk)
         return "OK", 200
@@ -178,11 +153,6 @@ def stop_all_streams():
             camera_streams[cam_id].put(None)
         except Exception:
             pass
-        try:
-            download_streams[cam_id].put(None)
-        except Exception:
-            pass
-
 
 def menu_loop():
     """Interactive single-char menu:
