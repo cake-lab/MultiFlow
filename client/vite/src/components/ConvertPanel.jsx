@@ -1,32 +1,12 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useRef } from 'react'
 
-function ConvertPanel() {
-  const [pastRecordings, setPastRecordings] = useState([])
-  const [convertedFiles, setConvertedFiles] = useState([])
-  const [converting, setConverting] = useState([])
+function ConvertPanel({ 
+  pastRecordings,
+  convertedFiles,
+  converting, setConverting,
+  fetchInfo
+}) {
   const eventSources = useRef({})
-
-  const fetchInfo = () => {
-    fetch('/info')
-      .then(res => res.json())
-      .then(data => {
-        setPastRecordings(data.past_recordings || [])
-        setConvertedFiles(data.converted_files || [])
-        setConverting(data.conversions_in_progress || [])
-      })
-      .catch(err => console.error('fetch /info failed', err))
-  }
-
-  useEffect(() => {
-    fetchInfo()
-    return () => {
-      // cleanup any event sources
-      Object.values(eventSources.current).forEach(es => {
-        try { es.close() } catch (e) { }
-      })
-      eventSources.current = {}
-    }
-  }, [])
 
   useEffect(() => {
     // Ensure event sources exist for active conversions
@@ -41,11 +21,11 @@ function ConvertPanel() {
             // conversion done — remove from converting and refresh info
             setConverting(prev => prev.filter(x => x !== id))
             fetchInfo()
-            try { es.close() } catch (e) { }
+            es.close()
             delete eventSources.current[id]
           } else if (status === 'not_found') {
             setConverting(prev => prev.filter(x => x !== id))
-            try { es.close() } catch (e) { }
+            es.close()
             delete eventSources.current[id]
             fetchInfo()
           }
@@ -53,7 +33,7 @@ function ConvertPanel() {
         es.onerror = () => {
           // keep trying; close if readyState closed
           if (es.readyState === EventSource.CLOSED) {
-            try { es.close() } catch (e) { }
+            es.close()
             delete eventSources.current[id]
           }
         }
