@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import './styles.css'
 import SingleVideo from './components/SingleVideo'
 import AllVideos from './components/AllVideos'
+import ConvertPanel from './components/ConvertPanel'
 
 function App() {
   const [videoMode, setVideoMode] = useState(0);
@@ -30,6 +31,8 @@ function App() {
         return <AllVideos cameras={cameras} setCameras={setCameras} getCameras={getCameras} />;
       case 2:
         return <SingleVideo cameras={pastCameras} getCameras={getCameras} />;
+      case 3:
+        return <ConvertPanel />;
       default:
         // Placeholder for future modes
         return <div>Unknown mode: {videoMode}</div>;
@@ -42,6 +45,7 @@ function App() {
           {videoMode !== 0 && <button onClick={() => setVideoMode(0)}>Switch to Single-Video</button>}
           {videoMode !== 1 && <button onClick={() => setVideoMode(1)}>Switch to Multi-Video</button>}
           {videoMode !== 2 && <button onClick={() => setVideoMode(2)}>Switch to Past Recordings</button>}
+          {videoMode !== 3 && <button onClick={() => setVideoMode(3)}>Switch to Convert/Downloads</button>}
           <button onClick={getCameras}>{cameras.length > 0 || pastCameras.length > 0 ? "Refresh" : "Get"} Past/Current Recordings</button>
         </div>
       </div>
