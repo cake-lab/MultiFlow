@@ -232,6 +232,8 @@ def stop_all_streams():
             pass
 @app.route("/convert-status/<camera_id>")
 def convert_status(camera_id):
+    if os.path.basename(camera_id) != camera_id:
+        return {"error": "Invalid filename"}, 400
     def stream():
         last_status = None
         while True:
@@ -255,7 +257,7 @@ def convert_status(camera_id):
 @app.route("/download/<filename>")
 def download_converted(filename):
     # Disallow directory traversal: filename must not contain path separators
-    if os.path.sep in filename or (os.path.altsep and os.path.altsep in filename):
+    if os.path.basename(filename) != filename:
         return {"error": "Invalid filename"}, 400
     converted_dir = os.path.join(SERVER_ROOT, "converted")
     if not os.path.isdir(converted_dir):
