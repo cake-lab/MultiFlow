@@ -188,13 +188,15 @@ def convert_route(camera_id):
     """
     chunks_dir = os.path.join(SERVER_ROOT, "chunks", camera_id)
     manifest_path = os.path.join(chunks_dir, "manifest.mpd")
-    print(manifest_path)
     if not os.path.isdir(chunks_dir) or not os.path.exists(manifest_path):
         return {"error": "Recording not found"}, 404
 
     converted_dir = os.path.join(SERVER_ROOT, "converted")
     os.makedirs(converted_dir, exist_ok=True)
     output_path = os.path.join(converted_dir, f"{camera_id}.mp4")
+
+    if os.path.exists(output_path):
+        return {"error": "Converted file already exists"}, 409
 
     try:
         pid = start_conversion(camera_id, manifest_path, output_path)
