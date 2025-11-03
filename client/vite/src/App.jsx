@@ -29,7 +29,7 @@ function App() {
       case 1:
         return <AllVideos cameras={cameras} setCameras={setCameras} getCameras={getCameras} />;
       case 2:
-        return <SingleVideo cameras={pastCameras} setCameras={setPastCameras} getCameras={getCameras} />;
+        return <SingleVideo cameras={pastCameras} getCameras={getCameras} />;
       default:
         // Placeholder for future modes
         return <div>Unknown mode: {videoMode}</div>;
