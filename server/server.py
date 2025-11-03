@@ -133,7 +133,7 @@ def num_cameras():
 def dash_files(camera_id, filename):
     # Serve chunk files from the server's chunks directory
     return send_from_directory(os.path.join(SERVER_ROOT, "chunks", camera_id), filename)
-def reset_chunks_dir(base_dir="./chunks"):
+def setup_chunks_dir(base_dir="./chunks"):
     # Normalize base_dir to be inside the server package unless an absolute path was provided
     if not os.path.isabs(base_dir):
         base_dir = os.path.join(SERVER_ROOT, base_dir)
@@ -141,18 +141,6 @@ def reset_chunks_dir(base_dir="./chunks"):
     if not os.path.exists(base_dir):
         os.makedirs(base_dir)
         return
-    for name in os.listdir(base_dir):
-        path = os.path.join(base_dir, name)
-        if os.path.isfile(path):
-            os.remove(path)
-        elif os.path.isdir(path):
-            # recursively remove subfolders using only os
-            for root, dirs, files in os.walk(path, topdown=False):
-                for f in files:
-                    os.remove(os.path.join(root, f))
-                for d in dirs:
-                    os.rmdir(os.path.join(root, d))
-            os.rmdir(path)
 
 def stop_all_streams():
     for cam_id in list(camera_streams.keys()):
@@ -202,7 +190,7 @@ def main(argv=None):
     parser.add_argument('--debug', action='store_true', help='Enable Flask debug mode')
     args = parser.parse_args(argv)
 
-    reset_chunks_dir()
+    setup_chunks_dir()
     threading.Thread(target=menu_loop, daemon=True).start()
     threading.Thread(target=aggregate_telemetry, daemon=True).start()
     app.run(host=args.host, port=args.port, threaded=True)
