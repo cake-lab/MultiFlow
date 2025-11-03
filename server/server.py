@@ -118,15 +118,22 @@ def assets_files(filename):
     return send_from_directory(f"../client/web/assets", filename)
 @app.route("/info")
 def num_cameras():
+    chunks_root = os.path.join(SERVER_ROOT, "chunks")
+    try:
+        all_dirs = [name for name in os.listdir(chunks_root) if os.path.isdir(os.path.join(chunks_root, name))]
+    except FileNotFoundError:
+        all_dirs = []
+    past_recordings = [d for d in all_dirs if d not in camera_streams]
     return {
         "num_cameras": len(camera_streams),
-        "cameras": list(camera_streams.keys())
+        "cameras": list(camera_streams.keys()),
+        "past_recordings": sorted(past_recordings)
         }
 @app.route("/dash/<camera_id>/<path:filename>")
 def dash_files(camera_id, filename):
     # Serve chunk files from the server's chunks directory
     return send_from_directory(os.path.join(SERVER_ROOT, "chunks", camera_id), filename)
-def reset_chunks_dir(base_dir="./chunks"):
+def setup_chunks_dir(base_dir="./chunks"):
     # Normalize base_dir to be inside the server package unless an absolute path was provided
     if not os.path.isabs(base_dir):
         base_dir = os.path.join(SERVER_ROOT, base_dir)
@@ -134,18 +141,6 @@ def reset_chunks_dir(base_dir="./chunks"):
     if not os.path.exists(base_dir):
         os.makedirs(base_dir)
         return
-    for name in os.listdir(base_dir):
-        path = os.path.join(base_dir, name)
-        if os.path.isfile(path):
-            os.remove(path)
-        elif os.path.isdir(path):
-            # recursively remove subfolders using only os
-            for root, dirs, files in os.walk(path, topdown=False):
-                for f in files:
-                    os.remove(os.path.join(root, f))
-                for d in dirs:
-                    os.rmdir(os.path.join(root, d))
-            os.rmdir(path)
 
 def stop_all_streams():
     for cam_id in list(camera_streams.keys()):
@@ -195,7 +190,7 @@ def main(argv=None):
     parser.add_argument('--debug', action='store_true', help='Enable Flask debug mode')
     args = parser.parse_args(argv)
 
-    reset_chunks_dir()
+    setup_chunks_dir()
     threading.Thread(target=menu_loop, daemon=True).start()
     threading.Thread(target=aggregate_telemetry, daemon=True).start()
     app.run(host=args.host, port=args.port, threaded=True)
