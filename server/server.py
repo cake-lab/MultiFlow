@@ -41,7 +41,7 @@ def writer_thread(ffmpeg, frame_queue):
 
 def start_decoder(camera_id):
     """Start a new ffmpeg decoder process and threads for a camera."""
-    # Ensure chunks/ and recordings/ are created under the server package directory
+    # Ensure chunks/ are created under the server package directory
     chunks_dir = os.path.join(SERVER_ROOT, "chunks", camera_id)
     os.makedirs(chunks_dir, exist_ok=True)
     ffmpeg_cmd = [
