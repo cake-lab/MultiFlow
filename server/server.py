@@ -118,9 +118,16 @@ def assets_files(filename):
     return send_from_directory(f"../client/web/assets", filename)
 @app.route("/info")
 def num_cameras():
+    chunks_root = os.path.join(SERVER_ROOT, "chunks")
+    try:
+        all_dirs = [name for name in os.listdir(chunks_root) if os.path.isdir(os.path.join(chunks_root, name))]
+    except FileNotFoundError:
+        all_dirs = []
+    past_recordings = [d for d in all_dirs if d not in camera_streams]
     return {
         "num_cameras": len(camera_streams),
-        "cameras": list(camera_streams.keys())
+        "cameras": list(camera_streams.keys()),
+        "past_recordings": sorted(past_recordings)
         }
 @app.route("/dash/<camera_id>/<path:filename>")
 def dash_files(camera_id, filename):
