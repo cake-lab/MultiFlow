@@ -14,6 +14,9 @@ import logging
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../client/web"))
 app = Flask(__name__, template_folder=template_dir)
 
+active_conversions = {}
+active_conversions_lock = threading.Lock()
+
 camera_streams = {}
 telemetry_data_amounts = {}
 telemetry_data_locks = {}
@@ -141,6 +144,65 @@ def setup_chunks_dir(base_dir="./chunks"):
     if not os.path.exists(base_dir):
         os.makedirs(base_dir)
         return
+
+def _conversion_worker(camera_id, manifest_path, output_path):
+    """Run ffmpeg to convert a DASH manifest to a single MP4 file.
+    This runs in a background thread so the HTTP request can return immediately.
+    """
+    try:
+        # Use copy to avoid re-encoding when possible; allow necessary protocols
+        ffmpeg_cmd = [
+            "ffmpeg",
+            "-i", manifest_path,
+            "-c", "copy",
+            output_path
+        ]
+        print(f"[Conversion] Starting conversion for {camera_id}: {' '.join(ffmpeg_cmd)}")
+        proc = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=os.path.dirname(output_path))
+        stdout, stderr = proc.communicate()
+        if proc.returncode == 0:
+            print(f"[Conversion] Finished converting {camera_id} -> {output_path}")
+        else:
+            print(f"[Conversion] FFmpeg failed for {camera_id} (code {proc.returncode}): {stderr.decode(errors='ignore')}")
+    except Exception as e:
+        print(f"[Conversion] Exception while converting {camera_id}: {e}")
+    finally:
+        with active_conversions_lock:
+            active_conversions.pop(camera_id, None)
+
+def start_conversion(camera_id, manifest_path, output_path):
+    with active_conversions_lock:
+        if camera_id in active_conversions:
+            raise RuntimeError(f"Conversion already in progress for {camera_id}")
+        thread = threading.Thread(target=_conversion_worker, args=(camera_id, manifest_path, output_path), daemon=True)
+        active_conversions[camera_id] = thread
+        thread.start()
+        return thread.ident
+
+@app.route("/convert/<camera_id>", methods=["POST"])
+def convert_route(camera_id):
+    """
+    Start a background conversion of a past recording (chunks/<camera_id>/manifest.mpd)
+    into converted/<camera_id>.mp4. Returns 202 if started, 404 if not found, 409 if already converting.
+    """
+    chunks_dir = os.path.join(SERVER_ROOT, "chunks", camera_id)
+    manifest_path = os.path.join(chunks_dir, "manifest.mpd")
+    print(manifest_path)
+    if not os.path.isdir(chunks_dir) or not os.path.exists(manifest_path):
+        return {"error": "Recording not found"}, 404
+
+    converted_dir = os.path.join(SERVER_ROOT, "converted")
+    os.makedirs(converted_dir, exist_ok=True)
+    output_path = os.path.join(converted_dir, f"{camera_id}.mp4")
+
+    try:
+        pid = start_conversion(camera_id, manifest_path, output_path)
+    except RuntimeError as e:
+        return {"error": str(e)}, 409
+    except Exception as e:
+        return {"error": f"Failed to start conversion: {e}"}, 500
+
+    return {"status": "started", "output": output_path, "thread_id": pid}, 202
 
 def stop_all_streams():
     for cam_id in list(camera_streams.keys()):
