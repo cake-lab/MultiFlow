@@ -84,7 +84,7 @@ class CameraController:
             "-c:v", "libx264",
             "-preset", "veryfast",
             "-tune", "zerolatency",
-            "-f", "rawvideo",
+            "-f", "h264",
             "-"
         ]
 
