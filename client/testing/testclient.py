@@ -31,7 +31,7 @@ def build_server_url(host: str, port: int) -> str:
     return urllib.parse.urljoin(base, "/upload")
 
 def _reader_loop(ffmpeg, cam_unique_id, stop_event):
-    while True:
+    while not stop_event.is_set():
         data = ffmpeg.stdout.read(4096)
         if not data:
             if ffmpeg.poll() is not None:
@@ -76,11 +76,6 @@ class CameraController:
         if self._thread:
             self._thread.join()
             self._thread = None
-        if self.unique_id_timestamped:
-            try:
-                requests.delete(SERVER_URL, headers={"Camera-ID": str(self.unique_id_timestamped)}, timeout=1)
-            except requests.exceptions.RequestException:
-                pass
 
     def _run(self):
         print(self.source)
@@ -105,14 +100,20 @@ class CameraController:
 
         print(f"Started camera {self.unique_id_timestamped} (source {self.source})")
 
-        self.stop_event.wait()
-
-        ffmpeg.terminate()
         reader.join()
+        if not self.stop_event.is_set():
+            print(f"Camera {self.unique_id_timestamped} stream ended")
+            self.stop_event.set()
+        ffmpeg.terminate()
         try:
             ffmpeg.wait()
         except Exception:
             pass
+        if self.unique_id_timestamped:
+            try:
+                requests.delete(SERVER_URL, headers={"Camera-ID": str(self.unique_id_timestamped)}, timeout=1)
+            except requests.exceptions.RequestException:
+                pass
 
 
 def detect_tests(tests_dir: Path):
