@@ -9,20 +9,10 @@ Purpose
 - Replace physical cameras with MP4 files for local testing and development.
 - Useful for replaying recorded video as camera inputs and exercising the server upload/ingest logic.
 
-Prerequisites
-- Python 3.8+ (or a reasonably recent Python 3)
-- ffmpeg available on PATH (used to decode and re-encode input files to raw H.264)
-- Python dependency: `requests` (install with `pip install requests`)
-
 Test files layout
 - Place MP4 files under `client/testing/tests/<testname>/`.
   - Example: `client/testing/tests/kitppad-basic/stream1.mp4`
 - Each subdirectory under `tests/` that contains `.mp4` files becomes a test set.
-
-How it works (brief)
-- For each MP4 file in the chosen test set, `testclient.py` starts an `ffmpeg` process that outputs H.264 to stdout.
-- A background thread reads chunks from ffmpeg's stdout and POSTs them to the server upload URL as `application/octet-stream` with a `Camera-ID` header.
-- When a camera stops, the client issues an HTTP DELETE to the same upload URL with the `Camera-ID` header to notify the server.
 
 Running
 
@@ -80,5 +70,3 @@ Notes and caveats
 - The script sends small POSTs with raw H.264 byte chunks; ensure the receiver can handle this framing and `Camera-ID` header.
 - Timeouts on network requests are short (to avoid blocking on a slow server) and exceptions during POST are ignored so streams continue.
 
-Contact
-- If you need changes (different encoding, larger chunking, authentication), edit `client/testing/testclient.py` or open an issue in the repo.
