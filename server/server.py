@@ -247,6 +247,19 @@ def convert_status(camera_id):
                 break
             time.sleep(1)
     return app.response_class(stream(), mimetype='text/event-stream')
+@app.route("/download/<filename>")
+def download_converted(filename):
+    # Disallow directory traversal: filename must not contain path separators
+    if os.path.sep in filename or (os.path.altsep and os.path.altsep in filename):
+        return {"error": "Invalid filename"}, 400
+    converted_dir = os.path.join(SERVER_ROOT, "converted")
+    if not os.path.isdir(converted_dir):
+        return {"error": "No converted recordings available"}, 404
+    file_path = os.path.join(converted_dir, filename)
+    if not os.path.isfile(file_path):
+        return {"error": "File not found"}, 404
+    # Serve the file as an attachment to prompt download
+    return send_from_directory(converted_dir, filename, as_attachment=True)
 
 def menu_loop():
     """Interactive single-char menu:
