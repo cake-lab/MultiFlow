@@ -217,7 +217,12 @@ def convert_route(camera_id):
     except Exception as e:
         return {"error": f"Failed to start conversion: {e}"}, 500
 
-    return {"status": "started", "output": output_path, "thread_id": pid}, 202
+    return {
+        "status": "started",
+        "camera_id": camera_id,
+        "output": f"converted/{camera_id}.mp4",
+        "thread_id": pid
+    }, 202
 
 def stop_all_streams():
     for cam_id in list(camera_streams.keys()):
