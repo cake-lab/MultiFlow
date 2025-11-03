@@ -154,7 +154,8 @@ def _conversion_worker(camera_id, manifest_path, output_path):
         ffmpeg_cmd = [
             "ffmpeg",
             "-i", manifest_path,
-            "-c", "copy",
+             "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
             output_path
         ]
         print(f"[Conversion] Starting conversion for {camera_id}: {' '.join(ffmpeg_cmd)}")
